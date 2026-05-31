@@ -1,0 +1,3 @@
+# Allow logind/uaccess-aware desktop sessions to see VP50 SCSI generic nodes.
+# The installer also writes a per-user rule for systems that need OWNER access.
+ACTION=="add|change", SUBSYSTEM=="scsi_generic", ATTRS{idVendor}=="0951", ATTRS{idProduct}=="1576", TAG+="seat", TAG+="uaccess"

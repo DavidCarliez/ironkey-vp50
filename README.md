@@ -15,7 +15,7 @@ It talks directly to the drive through Linux SCSI generic (`/dev/sg*`) devices.
 - `unlock --pvc` opens the VP50 secure session and sends one password unlock
   command.
 - `mount` asks `udisksctl` to mount an unlocked filesystem partition.
-- `ironkey_vp50_kde_agent.py` can run in a desktop session and prompt with
+- `ironkey_vp50_desktop_agent.py` can run in a desktop session and prompt with
   `kdialog` or `zenity` when a locked VP50 is plugged in.
 
 The helper does not format, reset, repartition, or write to the decrypted
@@ -98,12 +98,13 @@ The password is not stored and is not placed in command-line arguments.
 Install the integration:
 
 ```bash
-sudo ./install-kde.sh
+sudo ./install-desktop.sh
 ```
 
 The installer:
 
-- installs command wrappers as `ironkey-vp50` and `ironkey-vp50-kde-agent`;
+- installs command wrappers as `ironkey-vp50` and
+  `ironkey-vp50-desktop-agent`;
 - installs `ironkey-vp50-root-unlock`, a narrow root wrapper used only for the
   SG_IO data-out unlock path;
 - installs a sudoers rule allowing the desktop user to run that root wrapper
@@ -116,13 +117,27 @@ After installing, unplug and replug the drive or log out and back in. You can
 test the agent manually with:
 
 ```bash
-ironkey-vp50-kde-agent --once
+ironkey-vp50-desktop-agent --once
 ```
 
-The installer currently writes a freedesktop autostart entry, so it is not
-strictly KDE-only. It was tested on KDE Plasma. GNOME and other desktop
-environments should work when they support freedesktop autostart, `sudo`,
-`udisksctl`, and either `zenity` or `kdialog`, but they are not tested yet.
+`install-kde.sh` and `ironkey-vp50-kde-agent` remain compatibility aliases.
+The installer writes a freedesktop autostart entry, so it is not strictly
+KDE-only. It was tested on KDE Plasma. GNOME and other desktop environments
+should work when they support freedesktop autostart, `sudo`, `udisksctl`, and
+either `zenity` or `kdialog`, but they are not tested yet.
+
+Packaged installs can run the setup command instead:
+
+```bash
+sudo ironkey-vp50-install-desktop
+```
+
+## Arch Packaging
+
+An AUR package recipe is kept in `aur/ironkey-vp50-git`. The package installs
+the command-line helper, desktop agent, udev metadata, and an opt-in setup
+command. It does not write sudoers or per-user autostart files during package
+installation; users run `sudo ironkey-vp50-install-desktop` for that.
 
 ## Password Derivation
 
@@ -155,3 +170,7 @@ ff a4 00 <domain> <user> <time_interval> <auto_logout> 00 00 00 00 00 00 00 00 0
 
 The password material is sent as a 16-byte data-out buffer. Defaults are
 `domain=0`, `user=0`, `time_interval=0`, and `auto_logout=0`.
+
+## License
+
+MIT. See `LICENSE`.
