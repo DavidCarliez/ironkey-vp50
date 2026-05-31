@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=IronKey VP50 Agent
+Comment=Prompt for and mount Kingston IronKey VaultPrivacy50 drives
+Exec=ironkey-vp50-kde-agent
+Terminal=false
+X-KDE-autostart-after=panel
+

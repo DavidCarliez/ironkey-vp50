@@ -15,6 +15,8 @@ It talks directly to the drive through Linux SCSI generic (`/dev/sg*`) devices.
 - `unlock --pvc` opens the VP50 secure session and sends one password unlock
   command.
 - `mount` asks `udisksctl` to mount an unlocked filesystem partition.
+- `ironkey_vp50_kde_agent.py` can run in a desktop session and prompt with
+  `kdialog` or `zenity` when a locked VP50 is plugged in.
 
 The helper does not format, reset, repartition, or write to the decrypted
 filesystem.
@@ -34,6 +36,7 @@ Use this only with devices you own or are authorized to access.
 - Python 3.10 or newer.
 - `openssl` on `PATH` for AES-ECB encryption.
 - `lsblk`, `udevadm`, and optionally `udisksctl`.
+- `kdialog` or `zenity` for the desktop auto-unlock agent.
 - Root privileges, or equivalent permissions to open the relevant `/dev/sg*`
   device.
 
@@ -66,7 +69,7 @@ sudo python3 ironkey_vp50.py unlock --sg /dev/sg0 --pvc
 
 By default the password is read with `getpass` and is not echoed. Avoid
 `--password` on shared systems because command-line arguments can be visible to
-other local users.
+other local users. GUI integrations should use `--password-stdin`.
 
 After a successful unlock, inspect block devices:
 
@@ -81,6 +84,45 @@ python3 ironkey_vp50.py mount --read-only
 ```
 
 Unmount with your desktop environment or `udisksctl unmount -b /dev/sdXN`.
+
+## Desktop Auto-Unlock
+
+The desktop agent is a user-session process. When a locked VP50 appears, it:
+
+1. shows a `kdialog` or `zenity` password prompt;
+2. passes the password to `ironkey_vp50.py unlock --pvc --password-stdin`;
+3. mounts the unlocked VP50 partition with `udisksctl`.
+
+The password is not stored and is not placed in command-line arguments.
+
+Install the integration:
+
+```bash
+sudo ./install-kde.sh
+```
+
+The installer:
+
+- installs command wrappers as `ironkey-vp50` and `ironkey-vp50-kde-agent`;
+- installs `ironkey-vp50-root-unlock`, a narrow root wrapper used only for the
+  SG_IO data-out unlock path;
+- installs a sudoers rule allowing the desktop user to run that root wrapper
+  without a sudo password;
+- installs the Python files under `/usr/local/lib/ironkey-vp50`;
+- installs a udev `uaccess` rule for `0951:1576` sg devices;
+- adds a freedesktop autostart entry for the desktop user that ran `sudo`.
+
+After installing, unplug and replug the drive or log out and back in. You can
+test the agent manually with:
+
+```bash
+ironkey-vp50-kde-agent --once
+```
+
+The installer currently writes a freedesktop autostart entry, so it is not
+strictly KDE-only. It was tested on KDE Plasma. GNOME and other desktop
+environments should work when they support freedesktop autostart, `sudo`,
+`udisksctl`, and either `zenity` or `kdialog`, but they are not tested yet.
 
 ## Password Derivation
 

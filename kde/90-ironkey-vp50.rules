@@ -1,0 +1,4 @@
+# Give the active local desktop user access to the VP50 SCSI generic node.
+# This lets the desktop user-session agent unlock the device without running the
+# password-bearing command through sudo/pkexec.
+ACTION=="add|change", SUBSYSTEM=="scsi_generic", ATTRS{idVendor}=="0951", ATTRS{idProduct}=="1576", TAG+="seat", TAG+="uaccess"

@@ -759,8 +759,16 @@ def cmd_cd_unlock(args: argparse.Namespace) -> int:
 
 def cmd_unlock(args: argparse.Namespace) -> int:
     dev = args.sg or first_sg_or_die()
+    if args.password and args.password_stdin:
+        print("--password and --password-stdin cannot be used together", file=sys.stderr)
+        return 2
+
     password = args.password
-    if password is None and args.dry_run:
+    if args.password_stdin:
+        password = sys.stdin.read()
+        if password.endswith("\n"):
+            password = password[:-1]
+    elif password is None and args.dry_run:
         password = ""
     elif password is None:
         password = getpass.getpass("IronKey password: ")
@@ -853,18 +861,22 @@ def cmd_mount(args: argparse.Namespace) -> int:
     tree = json.loads(cp.stdout)
     candidates: list[str] = []
 
-    def walk(nodes: list[dict]) -> None:
+    def is_vp50(node: dict) -> bool:
+        return node.get("vendor") == "Kingston" and node.get("model") == "VaultPrivacy50"
+
+    def collect_unmounted_partitions(nodes: list[dict], under_vp50: bool = False) -> None:
         for node in nodes:
+            node_is_vp50 = under_vp50 or is_vp50(node)
             path = node.get("path")
-            if node.get("type") == "part" and path and node.get("fstype"):
+            if node_is_vp50 and node.get("type") == "part" and path and node.get("fstype"):
                 mountpoints = node.get("mountpoints") or []
                 if not any(mountpoints):
                     candidates.append(path)
-            walk(node.get("children") or [])
+            collect_unmounted_partitions(node.get("children") or [], node_is_vp50)
 
-    walk(tree.get("blockdevices") or [])
+    collect_unmounted_partitions(tree.get("blockdevices") or [])
     if not candidates:
-        print("No unmounted filesystem partition found. Run status after unlock and inspect lsblk output.", file=sys.stderr)
+        print("No unmounted VaultPrivacy50 filesystem partition found.", file=sys.stderr)
         return 1
 
     dev = args.block or candidates[0]
@@ -955,6 +967,7 @@ def build_parser() -> argparse.ArgumentParser:
     unlock = sub.add_parser("unlock", help="send one password unlock command")
     unlock.add_argument("--sg", help="sg device, for example /dev/sg0")
     unlock.add_argument("--password", help="password on command line; omitted prompts securely")
+    unlock.add_argument("--password-stdin", action="store_true", help="read password from stdin")
     unlock.add_argument(
         "--password-mode",
         choices=["vendor-auto", "raw16", "md5"],
