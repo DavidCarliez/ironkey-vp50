@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+.env
+.env.*
+
+# Local reverse-engineering artifacts and vendor binaries are intentionally not
+# part of the public source release.
+reverse/
