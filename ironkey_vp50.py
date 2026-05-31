@@ -851,7 +851,7 @@ def cmd_unlock(args: argparse.Namespace) -> int:
 
 
 def cmd_mount(args: argparse.Namespace) -> int:
-    cp = run(["lsblk", "-J", "-o", "PATH,TRAN,TYPE,FSTYPE,MOUNTPOINTS,MODEL,VENDOR"])
+    cp = run(["lsblk", "-J", "-o", "NAME,PATH,TRAN,TYPE,FSTYPE,MOUNTPOINTS,MODEL,VENDOR"])
     if cp.returncode != 0:
         print(cp.stderr.rstrip(), file=sys.stderr)
         return cp.returncode

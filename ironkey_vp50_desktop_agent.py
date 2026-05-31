@@ -95,7 +95,7 @@ def ask_password() -> str | None:
 
 
 def lsblk_tree() -> list[dict]:
-    cp = run(["lsblk", "-J", "-o", "PATH,MODEL,VENDOR,SIZE,TYPE,FSTYPE,MOUNTPOINTS"])
+    cp = run(["lsblk", "-J", "-o", "NAME,PATH,MODEL,VENDOR,SIZE,TYPE,FSTYPE,MOUNTPOINTS"])
     if cp.returncode != 0:
         log(f"lsblk failed: {cp.stderr.strip()}")
         return []
@@ -147,6 +147,10 @@ def mount_unlocked(read_only: bool) -> bool:
         cmd.append("--read-only")
     cp = run(cmd)
     log(f"mount command exited with {cp.returncode}")
+    output = "\n".join(part for part in (cp.stdout.strip(), cp.stderr.strip()) if part)
+    if output:
+        for line in output.splitlines():
+            log(f"mount output: {line}")
     if cp.returncode == 0:
         message = cp.stdout.strip() or "IronKey mounted."
         notify(message)
@@ -227,16 +231,16 @@ def check_once(read_only: bool) -> bool:
         return False
 
     if unlock_device(sg_devices[0], password):
-        for _ in range(10):
-            if vp50_has_mounted_partition(lsblk_tree()):
+        for _ in range(30):
+            nodes = lsblk_tree()
+            if vp50_has_mounted_partition(nodes):
                 log("VP50 mounted after unlock")
                 return True
-            if vp50_has_unmounted_partition(lsblk_tree()):
-                mount_unlocked(read_only)
-                return True
+            if vp50_has_unmounted_partition(nodes):
+                if mount_unlocked(read_only):
+                    return True
             time.sleep(0.5)
-        mount_unlocked(read_only)
-        return True
+        return mount_unlocked(read_only)
     return False
 
 
