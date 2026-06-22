@@ -111,6 +111,8 @@ The installer:
   without a sudo password;
 - installs the Python files under `/usr/local/lib/ironkey-vp50`;
 - installs a udev `uaccess` rule for `0951:1576` sg devices;
+- installs a narrow polkit rule allowing that desktop user to mount unlocked
+  VaultPrivacy50 filesystems through UDisks from the background agent;
 - adds a freedesktop autostart entry for the desktop user that ran `sudo`.
 
 After installing, unplug and replug the drive or log out and back in. You can
@@ -136,8 +138,9 @@ sudo ironkey-vp50-install-desktop
 
 An AUR package recipe is kept in `aur/ironkey-vp50-git`. The package installs
 the command-line helper, desktop agent, udev metadata, and an opt-in setup
-command. It does not write sudoers or per-user autostart files during package
-installation; users run `sudo ironkey-vp50-install-desktop` for that.
+command. It does not write sudoers, polkit, udev override, or per-user
+autostart files during package installation; users run
+`sudo ironkey-vp50-install-desktop` for that.
 
 ## Password Derivation
 
