@@ -246,25 +246,42 @@ def check_once(read_only: bool) -> bool:
 
 def cmd_agent(args: argparse.Namespace) -> int:
     log("agent started")
-    last_prompt = 0.0
+    last_prompt: float | None = None
+    locked_since: float | None = None
     while True:
         nodes = lsblk_tree()
         if vp50_has_mounted_partition(nodes):
+            last_prompt = None
+            locked_since = None
             if args.once:
                 return 0
             time.sleep(args.poll_interval)
             continue
 
         if vp50_has_unmounted_partition(nodes):
+            last_prompt = None
+            locked_since = None
             mount_unlocked(args.read_only)
             if args.once:
                 return 0
             time.sleep(args.poll_interval)
             continue
 
-        if vp50_locked_present(nodes) and time.monotonic() - last_prompt >= args.retry_delay:
-            last_prompt = time.monotonic()
-            check_once(args.read_only)
+        now = time.monotonic()
+        if vp50_locked_present(nodes):
+            if locked_since is None:
+                locked_since = now
+            settled = now - locked_since >= args.settle_delay
+            retry_ready = last_prompt is None or now - last_prompt >= args.retry_delay
+            if settled and retry_ready:
+                last_prompt = now
+                check_once(args.read_only)
+            elif args.once:
+                time.sleep(args.poll_interval)
+                continue
+        else:
+            last_prompt = None
+            locked_since = None
 
         if args.once:
             return 0
@@ -276,6 +293,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--once", action="store_true", help="check once and exit")
     parser.add_argument("--read-only", action="store_true", help="mount the unlocked partition read-only")
     parser.add_argument("--poll-interval", type=float, default=2.0, help="poll interval in seconds")
+    parser.add_argument("--settle-delay", type=float, default=8.0, help="seconds a locked VP50 must be present before prompting")
     parser.add_argument("--retry-delay", type=float, default=300.0, help="minimum delay between password prompts")
     parser.set_defaults(func=cmd_agent)
     return parser

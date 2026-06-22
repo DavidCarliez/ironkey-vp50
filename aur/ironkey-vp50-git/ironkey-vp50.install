@@ -7,8 +7,8 @@ Command-line use:
   sudo ironkey-vp50 unlock --sg /dev/sg0 --pvc
   ironkey-vp50 mount
 
-Desktop auto-unlock setup is opt-in because it writes sudoers, udev, and
-per-user autostart files:
+Desktop auto-unlock setup is opt-in because it writes sudoers, polkit, udev,
+and per-user autostart files:
   sudo ironkey-vp50-install-desktop
 EOF
 }
