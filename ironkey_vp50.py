@@ -850,6 +850,31 @@ def cmd_unlock(args: argparse.Namespace) -> int:
     return 0
 
 
+DIRTY_NTFS_HINTS = ("wrong fs type", "bad superblock")
+UDISKS_FORCE_HINT = """\
+udisks2 refused the 'force' mount option. Allow it once by rerunning:
+
+  sudo ironkey-vp50-install-desktop
+
+or by adding 'force' to both the ntfs:ntfs3_allow and ntfs:ntfs_allow lists in
+/etc/udisks2/mount_options.conf, then remounting. Clearing the dirty flag
+(chkdsk on Windows, or ntfsfix -d) also makes a plain mount work."""
+
+
+def udisks_mount(dev: str, options: list[str]) -> subprocess.CompletedProcess[str]:
+    command = ["udisksctl", "mount"]
+    if options:
+        command += ["-o", ",".join(options)]
+    command += ["-b", dev]
+    print("Running:", " ".join(command))
+    cp = run(command)
+    if cp.stdout:
+        print(cp.stdout.rstrip())
+    if cp.stderr:
+        print(cp.stderr.rstrip(), file=sys.stderr)
+    return cp
+
+
 def cmd_mount(args: argparse.Namespace) -> int:
     cp = run(["lsblk", "-J", "-o", "NAME,PATH,TRAN,TYPE,FSTYPE,MOUNTPOINTS,MODEL,VENDOR"])
     if cp.returncode != 0:
@@ -859,7 +884,7 @@ def cmd_mount(args: argparse.Namespace) -> int:
     import json
 
     tree = json.loads(cp.stdout)
-    candidates: list[str] = []
+    candidates: dict[str, str] = {}
 
     def is_vp50(node: dict) -> bool:
         return node.get("vendor") == "Kingston" and node.get("model") == "VaultPrivacy50"
@@ -871,7 +896,7 @@ def cmd_mount(args: argparse.Namespace) -> int:
             if node_is_vp50 and node.get("type") == "part" and path and node.get("fstype"):
                 mountpoints = node.get("mountpoints") or []
                 if not any(mountpoints):
-                    candidates.append(path)
+                    candidates[path] = node["fstype"]
             collect_unmounted_partitions(node.get("children") or [], node_is_vp50)
 
     collect_unmounted_partitions(tree.get("blockdevices") or [])
@@ -879,17 +904,28 @@ def cmd_mount(args: argparse.Namespace) -> int:
         print("No unmounted VaultPrivacy50 filesystem partition found.", file=sys.stderr)
         return 1
 
-    dev = args.block or candidates[0]
-    cmd = ["udisksctl", "mount", "-b", dev]
-    if args.read_only:
-        cmd = ["udisksctl", "mount", "-o", "ro", "-b", dev]
-    print("Running:", " ".join(cmd))
-    cp = run(cmd)
-    if cp.stdout:
-        print(cp.stdout.rstrip())
-    if cp.stderr:
-        print(cp.stderr.rstrip(), file=sys.stderr)
-    return cp.returncode
+    dev = args.block or next(iter(candidates))
+    fstype = candidates.get(dev, "")
+
+    result = udisks_mount(dev, ["ro"] if args.read_only else [])
+    if result.returncode == 0 or (fstype and fstype != "ntfs"):
+        return result.returncode
+
+    # ntfs3 refuses a volume whose dirty flag is set and udisks reports that as
+    # "wrong fs type, bad option, bad superblock". Retry read-only so the data
+    # stays visible without letting the kernel modify an unverified volume.
+    output = f"{result.stdout}\n{result.stderr}"
+    if not any(hint in output for hint in DIRTY_NTFS_HINTS):
+        return result.returncode
+
+    print(
+        "Mount failed the way ntfs3 fails on a volume marked dirty; retrying read-only with 'force'.",
+        file=sys.stderr,
+    )
+    result = udisks_mount(dev, ["ro", "force"])
+    if result.returncode != 0 and "not allowed" in f"{result.stdout}\n{result.stderr}":
+        print(UDISKS_FORCE_HINT, file=sys.stderr)
+    return result.returncode
 
 
 def first_sg_or_die() -> str:
