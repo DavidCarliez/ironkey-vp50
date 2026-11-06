@@ -226,6 +226,12 @@ def check_once(read_only: bool) -> bool:
     sg_devices = ironkey_vp50.discover_vp50_sg_devices()
     log(f"sg_devices={sg_devices}")
     if not sg_devices:
+        message = (
+            "IronKey detected, but no /dev/sg* node is available. "
+            "Load the sg kernel module and replug the drive."
+        )
+        log(message)
+        notify(message)
         return False
 
     password = ask_password()
