@@ -159,6 +159,8 @@ def mount_unlocked(read_only: bool) -> bool:
         log("mount command reported failure, but VP50 is mounted")
         notify("IronKey mounted.")
         return True
+    reason = cp.stderr.strip().splitlines()[-1] if cp.stderr.strip() else "unknown error"
+    notify(f"IronKey mount failed: {reason}")
     return False
 
 
@@ -237,8 +239,7 @@ def check_once(read_only: bool) -> bool:
                 log("VP50 mounted after unlock")
                 return True
             if vp50_has_unmounted_partition(nodes):
-                if mount_unlocked(read_only):
-                    return True
+                break
             time.sleep(0.5)
         return mount_unlocked(read_only)
     return False
@@ -248,11 +249,13 @@ def cmd_agent(args: argparse.Namespace) -> int:
     log("agent started")
     last_prompt: float | None = None
     locked_since: float | None = None
+    mount_failed_at: float | None = None
     while True:
         nodes = lsblk_tree()
         if vp50_has_mounted_partition(nodes):
             last_prompt = None
             locked_since = None
+            mount_failed_at = None
             if args.once:
                 return 0
             time.sleep(args.poll_interval)
@@ -261,9 +264,14 @@ def cmd_agent(args: argparse.Namespace) -> int:
         if vp50_has_unmounted_partition(nodes):
             last_prompt = None
             locked_since = None
-            mount_unlocked(args.read_only)
+            # A mount that keeps failing (dirty volume, damaged filesystem) must
+            # not be retried on every poll: each attempt only spams udisks and
+            # the kernel log with the same error.
+            now = time.monotonic()
+            if mount_failed_at is None or now - mount_failed_at >= args.retry_delay:
+                mount_failed_at = None if mount_unlocked(args.read_only) else now
             if args.once:
-                return 0
+                return 0 if mount_failed_at is None else 1
             time.sleep(args.poll_interval)
             continue
 

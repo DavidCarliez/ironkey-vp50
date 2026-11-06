@@ -113,6 +113,9 @@ The installer:
 - installs a udev `uaccess` rule for `0951:1576` sg devices;
 - installs a narrow polkit rule allowing that desktop user to mount unlocked
   VaultPrivacy50 filesystems through UDisks from the background agent;
+- allows the `force` mount option for the ntfs drivers (ntfs3 and ntfs-3g) in
+  `/etc/udisks2/mount_options.conf`, so a volume whose dirty flag is set can
+  still be mounted read-only (see below);
 - adds a freedesktop autostart entry for the desktop user that ran `sudo`.
 
 After installing, unplug and replug the drive or log out and back in. You can
@@ -133,6 +136,30 @@ Packaged installs can run the setup command instead:
 ```bash
 sudo ironkey-vp50-install-desktop
 ```
+
+## Dirty or Damaged NTFS Volumes
+
+A mount failure that looks like this means the drive is already unlocked and the
+partition really is NTFS; the kernel refuses it only because the volume dirty
+flag is set, for example after the stick was unplugged without ejecting:
+
+```text
+Error mounting /dev/sda1 at /run/media/<user>/<uuid>: wrong fs type, bad option,
+bad superblock on /dev/sda1, missing codepage or helper program, or other error
+```
+
+`journalctl -k` shows the actual reason:
+
+```text
+ntfs3(sda1): volume is dirty and "force" flag is not set!
+```
+
+`ironkey-vp50 mount` then retries the partition read-only with the ntfs3 `force`
+option, which UDisks only forwards when `force` is in its allow list; the
+installer writes that list to `/etc/udisks2/mount_options.conf`. Mounting a
+dirty volume read-write is never attempted. To clear the flag instead, run
+`chkdsk /f` on Windows; `ntfsfix -d` clears it too but does not verify the
+volume.
 
 ## Arch Packaging
 
